@@ -4,4 +4,64 @@ bind :8080
 default_backend my_backend
 
 backend my_backend
-server node1 10.0.0.1:8080
+option httpchk #Enables HTTP health checks on servers using GET requests
+balance round-robin #Distributes requests equally in a round-robin fashion among available servers
+cookie SERVERID insert indirect cache
+http-check send meth GET uri /  #Customizes the HTTP health check request to use a GET on /
+server node1 10.0.0.1:8080 check inter 1 fall 1 rise 2 weight 2 cookie node1
+server node1 10.0.0.2:8080 check inter 1 fall 1 rise 2 weight 1 cookie node2
+server node2 10.0.0.3:8080 check inter 1 fall 1 rise 2 weight 1 cookie node3
+
+##################
+cookie SERVERID insert indirect cache
+Enables sticky sessions:
+
+SERVERID: Name of the cookie used to stick sessions.
+
+insert: Adds a cookie to HTTP responses.
+
+indirect: Only insert cookie on servers that support it.
+
+cache: Caches the cookie mapping in memory to avoid recomputing.
+###################
+frontend https_in
+    bind *:443 ssl crt /etc/haproxy/certs/fullchain.pem
+    mode http
+
+    # Path-based ACLs
+    acl is_api path_beg /api
+    acl is_admin path_beg /admin
+
+    # Host-based ACLs
+    acl host_api hdr(host) -i api.example.com
+    acl host_admin hdr(host) -i admin.example.com
+
+    # Route based on Host first, then path
+    use_backend api_backend if host_api
+    use_backend admin_backend if host_admin
+    use_backend api_backend if is_api
+    use_backend admin_backend if is_admin
+    default_backend web_backend
+
+backend web_backend
+    server web1 10.0.0.10:80 check
+
+backend api_backend
+    server api1 10.0.0.20:80 check
+
+backend admin_backend
+    server admin1 10.0.0.30:80 check
+bind *:443 ssl crt /etc/haproxy/certs/fullchain.pem
+HAProxy listens on port 443 for HTTPS.
+
+Uses a certificate bundle located at /etc/haproxy/certs/fullchain.pem.
+
+hdr(host)
+Matches the Host: header in HTTP requests.
+
+hdr(host) -i makes the comparison case-insensitive.
+
+ACL Routing Logic
+Priority is given to host-based routing (e.g. api.example.com) over path-based.
+
+Fallback to path-based routing if Host doesn’t match.
