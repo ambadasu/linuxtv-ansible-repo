@@ -1,0 +1,7 @@
+frontend my_frontend
+mode http
+bind :8080
+default_backend my_backend
+
+backend my_backend
+server node1 10.0.0.1:8080
